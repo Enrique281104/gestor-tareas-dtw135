@@ -1,5 +1,3 @@
-// js/crud.js
-
 // Funciones para manejar LocalStorage
 const TaskManager = {
     // Clave para guardar en LocalStorage
@@ -31,13 +29,16 @@ const TaskManager = {
         const tareas = this.getTasks();
         
         if (task.id) {
-            // Actualizar existente
             const index = tareas.findIndex(t => t.id == task.id);
             if (index !== -1) {
+                // Actualizar existente
                 tareas[index] = task;
+            } else {
+                // ¡AQUÍ ESTABA EL ERROR! Si trae ID pero no está en el array, es nueva.
+                tareas.push(task);
             }
         } else {
-            // Crear nueva (Generar ID simple usando timestamp)
+            // Por si acaso llega sin ID
             task.id = Date.now().toString();
             tareas.push(task);
         }
@@ -50,6 +51,15 @@ const TaskManager = {
     deleteTask: function(id) {
         let tareas = this.getTasks();
         tareas = tareas.filter(t => t.id != id);
+        this.saveTasks(tareas);
+        return tareas;
+    }, // <-- Importante: esta coma separa las funciones
+
+    // Eliminar Múltiples Tareas (NUEVO)
+    deleteMultipleTasks: function(idsArray) {
+        let tareas = this.getTasks();
+        // Filtramos dejando solo las tareas cuyo ID NO esté en el arreglo de IDs a borrar
+        tareas = tareas.filter(t => !idsArray.includes(t.id));
         this.saveTasks(tareas);
         return tareas;
     }
