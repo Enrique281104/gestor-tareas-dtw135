@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tareas - Calendario</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body>
+
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div>
+                <h1>Calendario Mensual</h1>
+                <p>Planifica tus actividades y mantén el control de tu tiempo.</p>
+            </div>
+            <div class="user-info">
+                <span id="api-location"><i class="fas fa-map-marker-alt"></i> Obteniendo ubicación...</span>
+                <button class="btn-primary" id="btn-open-modal"><i class="fas fa-plus"></i> Nueva Tarea</button>
+            </div>
+        </header>
+
+        <section class="calendar-container">
+            <div class="calendar-header-controls">
+                <button id="prev-month"><i class="fas fa-chevron-left"></i> Anterior</button>
+                <h2 id="calendar-month-year">Cargando...</h2>
+                <button id="next-month">Siguiente <i class="fas fa-chevron-right"></i></button>
+            </div>
+
+            <div class="calendar-grid" style="margin-bottom: 10px;">
+                <div class="calendar-day-name">Dom</div>
+                <div class="calendar-day-name">Lun</div>
+                <div class="calendar-day-name">Mar</div>
+                <div class="calendar-day-name">Mié</div>
+                <div class="calendar-day-name">Jue</div>
+                <div class="calendar-day-name">Vie</div>
+                <div class="calendar-day-name">Sáb</div>
+            </div>
+
+            <div class="calendar-grid" id="calendar-days">
+            </div>
+        </section>
+    </main>
+
+    <div class="modal" id="task-modal">
+        <div class="modal-content">
+            <h2 id="modal-title" style="margin-bottom: 20px;">Agregar Nueva Tarea</h2>
+            <form id="task-form">
+                <input type="hidden" id="task-id">
+                <div class="form-group"><label>Título</label><input type="text" id="task-title" required></div>
+                <div class="form-group"><label>Descripción</label><textarea id="task-desc" rows="3" required></textarea></div>
+                <div class="form-group"><label>Fecha</label><input type="date" id="task-date" required></div>
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="task-status"><option value="pending">Pendiente</option><option value="completed">Completada</option></select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btn-close-modal">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/crud.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
