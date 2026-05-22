@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <title>Gestor de Tareas - Dashboard</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="css/styles.css" rel="stylesheet">
@@ -25,7 +25,7 @@
 
         <section class="welcome-hero">
             <h1>Bienvenido a TaskMaster</h1>
-            <p>Tu aliado estratégico para la organización personal. Diseñado para ayudarte a alcanzar tus objetivos mediante una gestión de tareas fluida y métricas en tiempo real.</p>
+            <h2>Tu aliado estratégico para la organización personal. Diseñado para ayudarte a alcanzar tus objetivos mediante una gestión de tareas fluida y métricas en tiempo real.</h2>
         </section>
 
         <section class="dashboard-cards">
@@ -109,6 +109,20 @@
                     <button type="submit" class="btn-primary">Guardar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal" id="delete-confirm-modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div style="font-size: 3rem; color: var(--danger); margin-bottom: 15px;">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h2 style="margin-bottom: 10px;">¿Eliminar Tarea?</h2>
+            <p style="color: var(--text-light); margin-bottom: 25px;">Esta acción es permanente y no se puede deshacer. ¿Estás seguro?</p>
+            <div class="modal-actions" style="justify-content: center; width: 100%;">
+                <button type="button" class="btn-cancel" id="btn-cancel-delete">Cancelar</button>
+                <button type="button" class="btn-primary" id="btn-confirm-delete" style="background-color: var(--danger); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Sí, Eliminar</button>
+            </div>
         </div>
     </div>
 
