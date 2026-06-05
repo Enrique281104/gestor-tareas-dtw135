@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tareas - Mis Tareas</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/styles.css" rel="stylesheet">
+</head>
+<body>
+
+    <aside class="sidebar" id="sidebar-container"></aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <div>
+                <h1>Mis Tareas</h1>
+                <p>Gestiona tu listado de actividades.</p>
+            </div>
+            <div class="user-info">
+                <span id="api-location"><i class="fas fa-map-marker-alt"></i> Obteniendo ubicación...</span>
+                <button class="btn-primary" id="btn-open-modal"><i class="fas fa-plus"></i> Nueva Tarea</button>
+            </div>
+        </header>
+
+        <section class="crud-container">
+            <div class="crud-header">
+                <h2>Listado de Tareas</h2>
+                <div class="crud-controls">
+                    <input type="text" id="search-input" placeholder="Buscar por ID o Título...">
+                    
+                    <button id="btn-delete-selected" class="btn-primary" style="background-color: var(--danger); display: none;">
+                        <i class="fas fa-trash-alt"></i> Eliminar Seleccionadas
+                    </button>
+                    
+                    <div class="date-filters">
+                        <input type="date" id="filter-date-start" title="Desde la fecha...">
+                        <input type="date" id="filter-date-end" title="Hasta la fecha...">
+                    </div>
+                    
+                    <select id="filter-select">
+                        <option value="all">Todos los estados</option>
+                        <option value="pending">Pendientes</option>
+                        <option value="completed">Completadas</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table id="tasks-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="select-all-tasks" title="Seleccionar todas las tareas">
+                            </th>
+                            <th>ID</th>
+                            <th>Título</th>
+                            <th>Descripción</th>
+                            <th id="th-fecha" class="sortable-header" title="Clic para ordenar">
+                                Fecha <i id="sort-icon" class="fas fa-sort-down"></i>
+                            </th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasks-tbody"></tbody>
+                </table>
+            </div>
+            
+            <div class="pagination-controls">
+                <button type="button" class="btn-cancel" id="btn-prev-page" disabled>Anterior</button>
+                <span id="page-info">Página 1 de 1</span>
+                <button type="button" class="btn-cancel" id="btn-next-page" disabled>Siguiente</button>
+            </div>
+        </section>
+    </main>
+
+    <div class="modal" id="task-modal">
+        <div class="modal-content">
+            <h2 id="modal-title" style="margin-bottom: 20px;">Agregar Nueva Tarea</h2>
+            <form id="task-form">
+                <input type="hidden" id="task-id">
+                <div class="form-group"><label>Título</label><input type="text" id="task-title" required></div>
+                <div class="form-group"><label>Descripción</label><textarea id="task-desc" rows="3" required></textarea></div>
+                <div class="form-group"><label>Fecha</label><input type="date" id="task-date" required></div>
+                
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select id="task-status"><option value="pending">Pendiente</option><option value="completed">Completada</option></select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="btn-close-modal">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="delete-confirm-modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div style="font-size: 3rem; color: var(--danger); margin-bottom: 15px;">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h2 id="delete-modal-title" style="margin-bottom: 10px;">¿Eliminar Tarea?</h2>
+            <p id="delete-modal-text" style="color: var(--text-light); margin-bottom: 25px;">Esta acción es permanente y no se puede deshacer. ¿Estás seguro?</p>
+            <div class="modal-actions" style="justify-content: center; width: 100%;">
+                <button type="button" class="btn-cancel" id="btn-cancel-delete">Cancelar</button>
+                <button type="button" class="btn-primary" id="btn-confirm-delete" style="background-color: var(--danger); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Sí, Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="view-task-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 15px;">
+                <h2 id="view-task-title" style="word-break: break-word; color: var(--primary-color); margin: 0;">Título de la tarea</h2>
+                <span id="view-task-status" class="status-badge" style="white-space: nowrap;">Estado</span>
+            </div>
+            
+            <div style="margin-bottom: 15px; color: var(--text-light); font-size: 0.95rem;">
+                <p><strong><i class="fas fa-fingerprint"></i> ID:</strong> <span id="view-task-id"></span></p>
+                <p style="margin-top: 8px;"><strong><i class="fas fa-calendar-alt"></i> Fecha planificada:</strong> <span id="view-task-date"></span></p>
+            </div>
+            
+            <div style="margin-bottom: 25px;">
+                <p style="color: var(--text-light); font-size: 0.95rem; margin-bottom: 8px;"><strong><i class="fas fa-align-left"></i> Descripción:</strong></p>
+                <div id="view-task-desc" style="background: var(--bg-color); padding: 15px; border-radius: 8px; color: var(--text-dark); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.5; max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            
+            <div class="modal-actions" style="justify-content: flex-end;">
+                <button type="button" class="btn-cancel" id="btn-close-view">Cerrar</button>
+                <button type="button" class="btn-primary" id="btn-edit-from-view"><i class="fas fa-edit"></i> Editar Tarea</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/lastview.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/crud.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
