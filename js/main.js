@@ -1,8 +1,84 @@
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark') {
+    document.body.classList.add('dark-theme');
+}
+
+window.showToast = function(message, type = 'success') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    
+    const icon = type === 'success' ? '<i class="fas fa-check-circle"></i>' : 
+                 type === 'danger' ? '<i class="fas fa-trash-alt"></i>' : 
+                 '<i class="fas fa-info-circle"></i>';
+                 
+    toast.innerHTML = `${icon} <span>${message}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400); 
+    }, 3000);
+};
+
+async function cargarSidebar() {
+    try {
+        const response = await fetch('./components/sidebar.html');
+        if (!response.ok) throw new Error(response.status);
+        
+        const html = await response.text();
+        const container = document.getElementById('sidebar-container');
+        if (container) container.innerHTML = html;
+
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        if (themeToggleBtn) {
+            const icon = themeToggleBtn.querySelector('i');
+            if (document.body.classList.contains('dark-theme') && icon) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+
+            themeToggleBtn.addEventListener('click', () => {
+                document.body.classList.toggle('dark-theme');
+                const isDark = document.body.classList.contains('dark-theme');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                
+                if (icon) {
+                    if (isDark) {
+                        icon.classList.remove('fa-moon');
+                        icon.classList.add('fa-sun');
+                    } else {
+                        icon.classList.remove('fa-sun');
+                        icon.classList.add('fa-moon');
+                    }
+                }
+            });
+        }
+
+        const path = window.location.pathname;
+        let activeNavId = 'nav-dashboard';
+        if (path.includes('tareas.html')) activeNavId = 'nav-tareas';
+        else if (path.includes('calendario.html')) activeNavId = 'nav-calendario';
+        else if (path.includes('configuracion.html')) activeNavId = 'nav-config';
+
+        const activeNav = document.getElementById(activeNavId);
+        if (activeNav) activeNav.parentElement.classList.add('active');
+
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Cargar el menú
     cargarSidebar();
 
-    // 2. Variables del DOM generales
     const tbody = document.getElementById('tasks-tbody');
     const modal = document.getElementById('task-modal');
     const taskForm = document.getElementById('task-form');
@@ -10,89 +86,93 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnDeleteSelected = document.getElementById('btn-delete-selected');
     const selectAllCheckbox = document.getElementById('select-all-tasks');
-    let selectedTaskIds = new Set(); // Guardará los IDs seleccionados
     const modalTitle = document.getElementById('modal-title');
-
-    // Variables del Modal de Visualización
+    
     const viewModal = document.getElementById('view-task-modal');
     const btnCloseView = document.getElementById('btn-close-view');
     const btnEditFromView = document.getElementById('btn-edit-from-view');
-    let currentViewTaskId = null;
     
-    // Variables del Calendario
     const calendarDays = document.getElementById('calendar-days');
     const monthYearText = document.getElementById('calendar-month-year');
     const monthPicker = document.getElementById('month-picker'); 
-    let navDate = new Date(); 
-
-    // Variables de Filtros, Búsqueda, Ordenamiento y Paginación
-    let currentPage = 1;
-    const itemsPerPage = 15; 
-    let dateSortOrder = 'desc'; // Por defecto, orden descendente
-
+    
     const searchInput = document.getElementById('search-input');
     const filterStatus = document.getElementById('filter-select') || document.getElementById('filter-status');
     const filterDateStart = document.getElementById('filter-date-start');
     const filterDateEnd = document.getElementById('filter-date-end');
     const filterDateSingle = document.getElementById('filter-date');
-    
     const thFecha = document.getElementById('th-fecha');
     const sortIcon = document.getElementById('sort-icon');
-    
     const btnPrevPage = document.getElementById('btn-prev-page');
     const btnNextPage = document.getElementById('btn-next-page');
     const pageInfo = document.getElementById('page-info');
 
-    // === SISTEMA DE NOTIFICACIONES (TOASTS) ===
-    window.showToast = function(message, type = 'success') {
-        let container = document.getElementById('toast-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'toast-container';
-            document.body.appendChild(container);
-        }
-        
-        const toast = document.createElement('div');
-        toast.className = `toast-notification toast-${type}`;
-        
-        const icon = type === 'success' ? '<i class="fas fa-check-circle"></i>' : 
-                     type === 'danger' ? '<i class="fas fa-trash-alt"></i>' : 
-                     '<i class="fas fa-info-circle"></i>';
-                     
-        toast.innerHTML = `${icon} <span>${message}</span>`;
-        container.appendChild(toast);
-        
-        // Animar entrada
-        setTimeout(() => toast.classList.add('show'), 10);
-        
-        // Quitar después de 3 segundos
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 400); 
-        }, 3000);
+    const btnPrevMonth = document.getElementById('prev-month');
+    const btnNextMonth = document.getElementById('next-month');
+
+    const deleteModal = document.getElementById('delete-confirm-modal');
+    const deleteModalTitle = document.getElementById('delete-modal-title');
+    const deleteModalText = document.getElementById('delete-modal-text');
+    const btnCancelDelete = document.getElementById('btn-cancel-delete');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
+
+    let selectedTaskIds = new Set();
+    let currentViewTaskId = null;
+    let navDate = new Date(); 
+    let currentPage = 1;
+    const itemsPerPage = 15; 
+    let dateSortOrder = 'desc';
+    let idsToDelete = []; 
+
+    let metricsWorker;
+    if (window.Worker) {
+        metricsWorker = new Worker('js/worker.js');
+        metricsWorker.onmessage = function(e) {
+            const elTotal = document.getElementById('metric-total');
+            const elComp = document.getElementById('metric-completed');
+            const elPend = document.getElementById('metric-pending');
+            if (elTotal) elTotal.textContent = e.data.total;
+            if (elComp) elComp.textContent = e.data.completadas;
+            if (elPend) elPend.textContent = e.data.pendientes;
+        };
+    }
+
+    const resetPaginationAndRender = () => {
+        currentPage = 1;
+        renderApp();
     };
 
-    // Escuchadores de Búsqueda, Filtros y Paginación
-    if (searchInput) searchInput.addEventListener('input', () => { currentPage = 1; renderApp(); });
-    if (filterStatus) filterStatus.addEventListener('change', () => { currentPage = 1; renderApp(); });
-    if (filterDateStart) filterDateStart.addEventListener('change', () => { currentPage = 1; renderApp(); });
-    if (filterDateEnd) filterDateEnd.addEventListener('change', () => { currentPage = 1; renderApp(); });
-    if (filterDateSingle) filterDateSingle.addEventListener('change', () => { currentPage = 1; renderApp(); });
+    if (searchInput) searchInput.addEventListener('input', resetPaginationAndRender);
+    if (filterStatus) filterStatus.addEventListener('change', resetPaginationAndRender);
+    if (filterDateStart) filterDateStart.addEventListener('change', resetPaginationAndRender);
+    if (filterDateEnd) filterDateEnd.addEventListener('change', resetPaginationAndRender);
+    if (filterDateSingle) filterDateSingle.addEventListener('change', resetPaginationAndRender);
     
-    // Escuchador para hacer clic en el encabezado de Fecha
     if (thFecha) {
         thFecha.addEventListener('click', () => {
             dateSortOrder = dateSortOrder === 'desc' ? 'asc' : 'desc';
-            if (dateSortOrder === 'asc') sortIcon.className = 'fas fa-sort-up';
-            else sortIcon.className = 'fas fa-sort-down';
-            
-            currentPage = 1;
-            renderApp();
+            if (sortIcon) {
+                sortIcon.className = dateSortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            }
+            resetPaginationAndRender();
         });
     }
     
-    if (btnPrevPage) btnPrevPage.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderApp(); } });
-    if (btnNextPage) btnNextPage.addEventListener('click', () => { currentPage++; renderApp(); });
+    if (btnPrevPage) {
+        btnPrevPage.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderApp();
+            }
+        });
+    }
+
+    if (btnNextPage) {
+        btnNextPage.addEventListener('click', () => {
+            currentPage++;
+            renderApp();
+        });
+    }
 
     if (monthPicker) {
         monthPicker.addEventListener('change', (e) => {
@@ -104,21 +184,20 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // 3. Inicializar el Web Worker
-    let metricsWorker;
-    if (window.Worker) {
-        metricsWorker = new Worker('js/worker.js');
-        metricsWorker.onmessage = function(e) {
-            const elTotal = document.getElementById('metric-total');
-            if(elTotal) elTotal.textContent = e.data.total;
-            const elComp = document.getElementById('metric-completed');
-            if(elComp) elComp.textContent = e.data.completadas;
-            const elPend = document.getElementById('metric-pending');
-            if(elPend) elPend.textContent = e.data.pendientes;
-        };
+    if (btnPrevMonth) {
+        btnPrevMonth.addEventListener('click', () => {
+            navDate.setMonth(navDate.getMonth() - 1);
+            renderCalendar();
+        });
     }
 
-    // --- FUNCIÓN PARA DIBUJAR EL CALENDARIO ---
+    if (btnNextMonth) {
+        btnNextMonth.addEventListener('click', () => {
+            navDate.setMonth(navDate.getMonth() + 1);
+            renderCalendar();
+        });
+    }
+
     function renderCalendar() {
         if (!calendarDays) return; 
 
@@ -126,7 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const month = navDate.getMonth();
         const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
         
-        monthYearText.textContent = `${monthNames[month]} ${year}`;
+        if (monthYearText) monthYearText.textContent = `${monthNames[month]} ${year}`;
         
         if (monthPicker) {
             const mesStr = (month + 1).toString().padStart(2, '0');
@@ -137,7 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const firstDay = new Date(year, month, 1).getDay(); 
         const daysInMonth = new Date(year, month + 1, 0).getDate(); 
-        const tareas = TaskManager.getTasks();
+        const tareas = typeof TaskManager !== 'undefined' ? TaskManager.getTasks() : [];
 
         for (let i = 0; i < firstDay; i++) {
             const emptyDiv = document.createElement('div');
@@ -166,11 +245,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const taskDiv = document.createElement('div');
                 taskDiv.className = `cal-task ${statusClass}`;
                 taskDiv.innerHTML = `<i class="fas ${icon}"></i> ${tarea.titulo}`;
-                taskDiv.title = tarea.descripcion; 
+                taskDiv.title = tarea.descripcion || ''; 
                 
                 taskDiv.onclick = (e) => {
                     e.stopPropagation(); 
-                    viewTask(tarea.id);
+                    window.viewTask(tarea.id);
                 };
                 
                 dayDiv.appendChild(taskDiv);
@@ -180,15 +259,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    const btnPrev = document.getElementById('prev-month');
-    const btnNext = document.getElementById('next-month');
-    if (btnPrev) btnPrev.addEventListener('click', () => { navDate.setMonth(navDate.getMonth() - 1); renderCalendar(); });
-    if (btnNext) btnNext.addEventListener('click', () => { navDate.setMonth(navDate.getMonth() + 1); renderCalendar(); });
-
-
-    // --- 4. RENDERIZAR TABLA, FILTROS, ORDENAMIENTO Y PAGINACIÓN ---
     function renderApp() {
-        let tareas = TaskManager.getTasks();
+        let tareas = typeof TaskManager !== 'undefined' ? TaskManager.getTasks() : [];
         if (metricsWorker) metricsWorker.postMessage(tareas);
 
         if (tbody) {
@@ -208,12 +280,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (filterDateEnd && filterDateEnd.value) tareas = tareas.filter(t => t.fecha <= filterDateEnd.value);
             if (filterDateSingle && filterDateSingle.value) tareas = tareas.filter(t => t.fecha === filterDateSingle.value);
 
-            // Ordenamiento por Fecha dinámico
             tareas.sort((a, b) => {
                 const dateA = a.fecha || '';
                 const dateB = b.fecha || '';
-                if (dateSortOrder === 'asc') return dateA.localeCompare(dateB); 
-                return dateB.localeCompare(dateA); 
+                return dateSortOrder === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA); 
             });
 
             const totalPages = Math.ceil(tareas.length / itemsPerPage) || 1;
@@ -223,6 +293,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const paginatedTasks = tareas.slice(startIdx, startIdx + itemsPerPage);
 
             if (pageInfo) pageInfo.textContent = `Página ${currentPage} de ${totalPages}`;
+            
             if (btnPrevPage) {
                 btnPrevPage.disabled = currentPage === 1;
                 btnPrevPage.style.opacity = currentPage === 1 ? '0.5' : '1';
@@ -241,47 +312,41 @@ document.addEventListener("DOMContentLoaded", () => {
                 paginatedTasks.forEach(tarea => {
                     const statusClass = tarea.estado === 'pending' ? 'status-pending' : 'status-completed';
                     const statusText = tarea.estado === 'pending' ? 'Pendiente' : 'Completada';
-
-                    const isChecked = selectedTaskIds.has(tarea.id) ? 'checked' : '';
-                    const tr = document.createElement('tr');
+                    const isChecked = selectedTaskIds.has(tarea.id.toString()) ? 'checked' : '';
                     
+                    const tr = document.createElement('tr');
                     const checkboxCol = selectAllCheckbox ? `
                         <td style="text-align: center;">
                             <input type="checkbox" class="task-checkbox" value="${tarea.id}" ${isChecked}>
                         </td>` : '';
 
-                    // AQUÍ ESTÁ EL CAMBIO PARA EL ID COMPLETO: #${tarea.id} en vez de #${tarea.id.slice(-4)}
                     tr.innerHTML = `
                         ${checkboxCol}
                         <td>#${tarea.id}</td>
                         <td>${tarea.titulo}</td>
-                        <td>${tarea.descripcion}</td>
+                        <td>${tarea.descripcion || ''}</td>
                         <td><strong>${tarea.fecha || 'Sin fecha'}</strong></td>
                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                         <td class="action-btns">
-                            <button class="btn-view" onclick="viewTask('${tarea.id}')" style="color: var(--primary-color);" title="Ver"><i class="fas fa-eye"></i></button>
-                            <button class="btn-edit" onclick="editTask('${tarea.id}')" title="Editar"><i class="fas fa-edit"></i></button>
-                            <button class="btn-delete" onclick="deleteSingleTask('${tarea.id}')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>
+                            <button class="btn-view" onclick="window.viewTask('${tarea.id}')" style="color: var(--primary-color);" title="Ver"><i class="fas fa-eye"></i></button>
+                            <button class="btn-edit" onclick="window.editTask('${tarea.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                            <button class="btn-delete" onclick="window.deleteSingleTask('${tarea.id}')" title="Eliminar"><i class="fas fa-trash-alt"></i></button>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
 
-                // --- NUEVA LÓGICA DE CHECKBOXES PARA EVITAR BUGS ---
                 const checkboxes = document.querySelectorAll('.task-checkbox');
-                
-                // 1. Al hacer clic en un checkbox individual
                 checkboxes.forEach(cb => {
                     cb.addEventListener('change', (e) => {
                         if (e.target.checked) selectedTaskIds.add(e.target.value);
                         else selectedTaskIds.delete(e.target.value);
                         
                         updateDeleteButtonState();
-                        updateSelectAllCheckboxState(checkboxes); // Validar si el maestro debe marcarse/desmarcarse
+                        updateSelectAllCheckboxState(checkboxes);
                     });
                 });
 
-                // 2. Validar el estado del maestro al cargar la página (por si cambias de pág y vuelves)
                 updateSelectAllCheckboxState(checkboxes);
             }
         }
@@ -289,33 +354,42 @@ document.addEventListener("DOMContentLoaded", () => {
         renderCalendar();
     }
 
-    // Función auxiliar para actualizar el Checkbox Maestro dependiendo de los individuales
     function updateSelectAllCheckboxState(checkboxes) {
         if (selectAllCheckbox && checkboxes.length > 0) {
-            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.checked = Array.from(checkboxes).every(cb => cb.checked);
         } else if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
         }
     }
 
-    // 5. Eventos de los Modales (Crear/Editar)
-    if(btnOpenModal) {
+    function updateDeleteButtonState() {
+        if (btnDeleteSelected) {
+            if (selectedTaskIds.size > 0) {
+                btnDeleteSelected.style.display = 'inline-flex';
+                btnDeleteSelected.innerHTML = `<i class="fas fa-trash-alt"></i> Eliminar (${selectedTaskIds.size})`;
+            } else {
+                btnDeleteSelected.style.display = 'none';
+            }
+        }
+    }
+
+    if (btnOpenModal) {
         btnOpenModal.addEventListener('click', () => {
-            taskForm.reset();
-            document.getElementById('task-id').value = '';
-            modalTitle.textContent = "Agregar Nueva Tarea";
-            modal.style.display = "flex";
+            if (taskForm) taskForm.reset();
+            const idInput = document.getElementById('task-id');
+            if (idInput) idInput.value = '';
+            if (modalTitle) modalTitle.textContent = "Agregar Nueva Tarea";
+            if (modal) modal.style.display = "flex";
         });
     }
 
-    if(btnCloseModal) {
+    if (btnCloseModal) {
         btnCloseModal.addEventListener('click', () => {
-            modal.style.display = "none";
+            if (modal) modal.style.display = "none";
         });
     }
 
-    if(taskForm) {
+    if (taskForm) {
         taskForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -330,31 +404,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 estado: document.getElementById('task-status').value
             };
             
-            TaskManager.saveTask(newTask);
-            modal.style.display = "none";
+            if (typeof TaskManager !== 'undefined') {
+                TaskManager.saveTask(newTask);
+            }
+            
+            if (modal) modal.style.display = "none";
             renderApp(); 
             
-            if (isEditing) {
-                showToast("Tarea actualizada correctamente.", "info");
-            } else {
-                showToast("Nueva tarea creada exitosamente.", "success");
-            }
+            window.showToast(
+                isEditing ? "Tarea actualizada correctamente." : "Nueva tarea creada exitosamente.", 
+                isEditing ? "info" : "success"
+            );
         });
     }
 
-    // Función para mostrar/ocultar el botón de borrado masivo
-    function updateDeleteButtonState() {
-        if (btnDeleteSelected) {
-            if (selectedTaskIds.size > 0) {
-                btnDeleteSelected.style.display = 'inline-flex';
-                btnDeleteSelected.innerHTML = `<i class="fas fa-trash-alt"></i> Eliminar (${selectedTaskIds.size})`;
-            } else {
-                btnDeleteSelected.style.display = 'none';
-            }
-        }
-    }
-
-    // Acción del Checkbox Maestro (Selecciona/Deselecciona SOLO los de la página visible)
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', (e) => {
             const checkboxes = document.querySelectorAll('.task-checkbox');
@@ -367,124 +430,108 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ==========================================
-    // LÓGICA DEL MODAL DE ELIMINACIÓN CUSTOM
-    // ==========================================
-    let idsToDelete = []; 
-    const deleteModal = document.getElementById('delete-confirm-modal');
-    const deleteModalTitle = document.getElementById('delete-modal-title');
-    const deleteModalText = document.getElementById('delete-modal-text');
-    const btnCancelDelete = document.getElementById('btn-cancel-delete');
-    const btnConfirmDelete = document.getElementById('btn-confirm-delete');
-
     window.deleteSingleTask = function(id) {
-        idsToDelete = [id];
-        if(deleteModalTitle) deleteModalTitle.textContent = "¿Eliminar Tarea?";
-        if(deleteModalText) deleteModalText.textContent = "Esta acción es permanente. ¿Estás seguro?";
-        if(deleteModal) deleteModal.style.display = 'flex';
+        idsToDelete = [id.toString()];
+        if (deleteModalTitle) deleteModalTitle.textContent = "¿Eliminar Tarea?";
+        if (deleteModalText) deleteModalText.textContent = "Esta acción es permanente. ¿Estás seguro?";
+        if (deleteModal) deleteModal.style.display = 'flex';
     };
 
     if (btnDeleteSelected) {
         btnDeleteSelected.addEventListener('click', () => {
             idsToDelete = Array.from(selectedTaskIds);
-            if(deleteModalTitle) deleteModalTitle.textContent = `¿Eliminar ${idsToDelete.length} Tareas?`;
-            if(deleteModalText) deleteModalText.textContent = `Vas a eliminar permanentemente ${idsToDelete.length} tareas. ¿Estás seguro?`;
-            if(deleteModal) deleteModal.style.display = 'flex';
+            if (deleteModalTitle) deleteModalTitle.textContent = `¿Eliminar ${idsToDelete.length} Tareas?`;
+            if (deleteModalText) deleteModalText.textContent = `Vas a eliminar permanentemente ${idsToDelete.length} tareas. ¿Estás seguro?`;
+            if (deleteModal) deleteModal.style.display = 'flex';
         });
     }
 
     if (btnCancelDelete) {
         btnCancelDelete.addEventListener('click', () => {
-            if(deleteModal) deleteModal.style.display = 'none';
+            if (deleteModal) deleteModal.style.display = 'none';
             idsToDelete = [];
         });
     }
 
     if (btnConfirmDelete) {
         btnConfirmDelete.addEventListener('click', () => {
-            if (idsToDelete.length > 0) {
+            if (idsToDelete.length > 0 && typeof TaskManager !== 'undefined') {
                 TaskManager.deleteMultipleTasks(idsToDelete);
                 
-                // Eliminamos los ids borrados de nuestro Set de selección actual
                 idsToDelete.forEach(id => selectedTaskIds.delete(id));
                 updateDeleteButtonState();
-                
                 renderApp(); 
-                showToast(idsToDelete.length > 1 ? `${idsToDelete.length} tareas eliminadas.` : "La tarea ha sido eliminada.", "danger");
+                
+                window.showToast(idsToDelete.length > 1 ? `${idsToDelete.length} tareas eliminadas.` : "La tarea ha sido eliminada.", "danger");
             }
-            if(deleteModal) deleteModal.style.display = 'none';
+            if (deleteModal) deleteModal.style.display = 'none';
             idsToDelete = [];
-            if(selectAllCheckbox) selectAllCheckbox.checked = false;
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
         });
     }
 
-    // ==========================================
-    // LÓGICA DEL MODAL DE VISUALIZACIÓN DE TAREA
-    // ==========================================
-    
     window.viewTask = function(id) {
-        const tarea = TaskManager.getTasks().find(t => t.id == id);
-        if(tarea && viewModal) {
+        if (typeof TaskManager === 'undefined') return;
+        const tarea = TaskManager.getTasks().find(t => t.id.toString() === id.toString());
+        
+        if (tarea && viewModal) {
             currentViewTaskId = tarea.id;
             
-            document.getElementById('view-task-title').textContent = tarea.titulo;
-            document.getElementById('view-task-id').textContent = `#${tarea.id}`;
-            document.getElementById('view-task-date').textContent = tarea.fecha || 'Sin fecha asignada';
-            document.getElementById('view-task-desc').textContent = tarea.descripcion || 'Sin descripción...';
-            
+            const titleEl = document.getElementById('view-task-title');
+            const idEl = document.getElementById('view-task-id');
+            const dateEl = document.getElementById('view-task-date');
+            const descEl = document.getElementById('view-task-desc');
             const statusEl = document.getElementById('view-task-status');
-            statusEl.textContent = tarea.estado === 'pending' ? 'Pendiente' : 'Completada';
-            statusEl.className = `status-badge ${tarea.estado === 'pending' ? 'status-pending' : 'status-completed'}`;
+
+            if (titleEl) titleEl.textContent = tarea.titulo;
+            if (idEl) idEl.textContent = `#${tarea.id}`;
+            if (dateEl) dateEl.textContent = tarea.fecha || 'Sin fecha asignada';
+            if (descEl) descEl.textContent = tarea.descripcion || 'Sin descripción...';
+            
+            if (statusEl) {
+                statusEl.textContent = tarea.estado === 'pending' ? 'Pendiente' : 'Completada';
+                statusEl.className = `status-badge ${tarea.estado === 'pending' ? 'status-pending' : 'status-completed'}`;
+            }
             
             viewModal.style.display = "flex";
         }
     };
 
-    if(btnCloseView) {
+    if (btnCloseView) {
         btnCloseView.addEventListener('click', () => {
-            viewModal.style.display = "none";
+            if (viewModal) viewModal.style.display = "none";
             currentViewTaskId = null;
         });
     }
 
-    if(btnEditFromView) {
+    if (btnEditFromView) {
         btnEditFromView.addEventListener('click', () => {
-            viewModal.style.display = "none"; 
-            editTask(currentViewTaskId); 
+            if (viewModal) viewModal.style.display = "none"; 
+            if (currentViewTaskId) window.editTask(currentViewTaskId); 
         });
     }
 
     window.editTask = function(id) {
-        const tarea = TaskManager.getTasks().find(t => t.id == id);
-        if(tarea) {
-            document.getElementById('task-id').value = tarea.id;
-            document.getElementById('task-title').value = tarea.titulo;
-            document.getElementById('task-desc').value = tarea.descripcion;
-            document.getElementById('task-date').value = tarea.fecha || ''; 
-            document.getElementById('task-status').value = tarea.estado;
-            if(modalTitle) modalTitle.textContent = "Editar Tarea";
-            if(modal) modal.style.display = "flex";
+        if (typeof TaskManager === 'undefined') return;
+        const tarea = TaskManager.getTasks().find(t => t.id.toString() === id.toString());
+        
+        if (tarea) {
+            const idInput = document.getElementById('task-id');
+            const titleInput = document.getElementById('task-title');
+            const descInput = document.getElementById('task-desc');
+            const dateInput = document.getElementById('task-date');
+            const statusInput = document.getElementById('task-status');
+
+            if (idInput) idInput.value = tarea.id;
+            if (titleInput) titleInput.value = tarea.titulo;
+            if (descInput) descInput.value = tarea.descripcion;
+            if (dateInput) dateInput.value = tarea.fecha || ''; 
+            if (statusInput) statusInput.value = tarea.estado;
+            
+            if (modalTitle) modalTitle.textContent = "Editar Tarea";
+            if (modal) modal.style.display = "flex";
         }
     };
 
     renderApp();
 });
-
-// Función para inyectar el HTML del panel lateral
-async function cargarSidebar() {
-    try {
-        const response = await fetch('./components/sidebar.html');
-        if (!response.ok) throw new Error(`No se pudo encontrar el archivo: ${response.status}`);
-        
-        const html = await response.text();
-        document.getElementById('sidebar-container').innerHTML = html;
-
-        const path = window.location.pathname;
-        if (path.includes('tareas.html')) document.getElementById('nav-tareas').parentElement.classList.add('active');
-        else if (path.includes('calendario.html')) document.getElementById('nav-calendario').parentElement.classList.add('active');
-        else if (path.includes('configuracion.html')) document.getElementById('nav-config').parentElement.classList.add('active');
-        else document.getElementById('nav-dashboard').parentElement.classList.add('active');
-    } catch (error) {
-        console.error('Error cargando el sidebar:', error);
-    }
-}
